@@ -1,0 +1,21 @@
+[tool.poetry]
+name = "try-game"
+version = "0.1.0"
+description = ""
+authors = ["Scott Frasso <scottfrasso@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.12"
+instructor = "^1.4.0"
+openai = "^1.43.0"
+pydantic = "^2.8.2"
+python-dotenv = "^1.0.1"
+ruff = "^0.6.3"
+xmltodict = "^0.13.0"
+textual = "^0.79.0"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
