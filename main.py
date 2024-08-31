@@ -9,6 +9,7 @@ load_dotenv()
 
 # Patch the OpenAI client
 client = instructor.from_openai(OpenAI())
+MODEL = "gpt-4o"
 
 def generate_scenario() -> Scenario:
     character_generation_prompt = """
@@ -18,7 +19,7 @@ def generate_scenario() -> Scenario:
 
     # Extract structured data from natural language
     game_scenario = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL,
         response_model=Scenario,
         messages=[
             {
@@ -62,7 +63,7 @@ def game_roll(scenario: Scenario, player_action: ProposedAction) -> ActionPhase:
   action_explained += f"I chose to: {player_action.player_input}"
 
   action_phase_result = client.chat.completions.create(
-      model="gpt-4o-mini",
+      model=MODEL,
       response_model=ActionPhase,
       messages=[
           {
@@ -86,7 +87,35 @@ def game_roll(scenario: Scenario, player_action: ProposedAction) -> ActionPhase:
 
   return action_phase_result
 
-def describe_scenario(current_entity_id: int, scenario: Scenario, be_brief=False) -> ScenarioDescription:
+def describe_effectiveness_of_action(scenario: Scenario, action: ActionPhase) -> str:
+    action_description = f"""
+    Describe the effectiveness of the last action taken by the player character.
+    The 'action' field should contain the action taken by the player character.
+    The 'scenario' field should contain the current state of the game scenario.
+    """
+
+    # Extract structured data from natural language
+    action_effectiveness = client.chat.completions.create(
+        model=MODEL,
+        response_model=str,
+        messages=[
+            {
+                "role": "system",
+                "content": action_description,
+            },
+            {
+                "role": "system",
+                "content": f"The current state of the scenario is:\n{scenario.to_xml()}",
+            },
+            {
+                "role": "system",
+                "content": f"The action taken by the player character is: {action.to_xml()}",
+            }
+        ],
+    )
+    return action_effectiveness
+
+def describe_scenario(current_entity_id: int, scenario: Scenario, be_brief=True) -> ScenarioDescription:
     current_entity = scenario._find_entity_by_id(current_entity_id)
     current_entity_name = current_entity.name if current_entity else "Unknown Entity"
 
@@ -135,11 +164,34 @@ def describe_scenario(current_entity_id: int, scenario: Scenario, be_brief=False
     
     # Extract structured data from natural language
     scenario_description = client.chat.completions.create(
-        model="gpt-4o-mini",
+        model=MODEL,
         response_model=ScenarioDescription,
         messages=messages,
     )
     return scenario_description
+
+def answer_question(scenario: Scenario, question: str) -> str:
+    question_prompt = f"""
+    Answer the following question based on the current game scenario:
+    {question}
+    """
+
+    # Extract structured data from natural language
+    answer = client.chat.completions.create(
+        model="gpt-4o-mini",
+        response_model=str,
+        messages=[
+            {
+               "role": "system",
+                "content": f"The current state of the scenario is:\n{scenario.to_xml()}",
+            },
+            {
+                "role": "system",
+                "content": question_prompt,
+            }
+        ],
+    )
+    return answer
 
 # Step 5: Implement the Game Loop
 def game_loop():
@@ -156,11 +208,10 @@ def game_loop():
         
         if current_entity in scenario.player_characters:
             
-            scenario_description = describe_scenario(current_entity_id, scenario, be_brief=turn_number > 0)
+            scenario_description = describe_scenario(current_entity_id, scenario, be_brief=turn_number == 0)
             print(f"{scenario_description.story}\n")
 
-            possible_actions = scenario_description.possible_actions + ["quit"]
-            action_input = input("What would you like to do?")
+            action_input = input("What would you like to do? ")
             if action_input == "quit":
                 print("[bold red]Game over![/bold red]")
                 break
@@ -169,10 +220,21 @@ def game_loop():
                 player_input=action_input,
                 source_entity_id=current_entity_id,
             )
+            # Figure out what the player wants to do
             player_action_phase = game_roll(scenario, player_action)
-            print(f"[blue]{player_action_phase.to_xml()}[/blue]\n\n")
+            #print(f"[blue]{player_action_phase.to_xml()}[/blue]\n\n")
+
+            if player_action_phase.is_question and player_action_phase.question_for_ai:
+                question = player_action_phase.question_for_ai
+                answer = answer_question(scenario, question)
+                print(f"[green]{answer}[/green]\n\n")
+                continue
+
             for action in player_action_phase.actions:
               scenario.apply_action(action)
+
+            action_effectiveness = describe_effectiveness_of_action(scenario, player_action_phase)
+            print(f"[green]{action_effectiveness}[/green]\n\n")
 
         else:
             # Simple AI or automated actions for monsters

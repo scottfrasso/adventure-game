@@ -51,6 +51,11 @@ class Action(BaseModelWithXML):
 
 class ActionPhase(BaseModelWithXML):
     actions: List[Action] = Field(..., description="The list of actions to perform in the game scenario")
+    is_question: bool = Field(False, description="Indicates if the player asked a question and the AI should respond accordingly and not process an action.")
+    question_for_ai: str | None = Field(None, description="""
+                                        The question asked by the player for the AI to respond to. 
+                                        This is only set if is_question is True and there was no action requested by the player.
+                                        """)
 
 TRAIT_BASED_ABILITIES = {
     Trait.AGGRESSIVE: [Ability.BERSERK],
