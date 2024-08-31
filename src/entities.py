@@ -50,7 +50,7 @@ class Action(BaseModelWithXML):
     description: str = Field("", description="Detailed description of the action taken in past tense for the game history.")
 
 class ActionPhase(BaseModelWithXML):
-    actions: List[Action] = Field(..., description="The list of actions to perform in the game scenario")
+    actions: List[Action] = Field(default_factory=list, description="The list of actions to perform in the game scenario")
     is_question: bool = Field(False, description="Indicates if the player asked a question and the AI should respond accordingly and not process an action.")
     question_for_ai: str | None = Field(None, description="""
                                         The question asked by the player for the AI to respond to. 
@@ -195,15 +195,28 @@ class Scenario(BaseModelWithXML):
         return None
 
     def _apply_attack(self, source: GameEntity, target: GameEntity, amount: int, description: str):
+        message = f"{source.name} attacks {target.name} for {amount} damage."
+
+        if target.defensive_bonus > 0:
+            amount = max(0, amount - target.defensive_bonus)
+            message += f" {target.name} defended the attack and lost the defensive bonus of {target.defensive_bonus}."
+            target.defensive_bonus = 0
+
         target.health -= amount
-        return f"{source.name} attacks {target.name} for {amount} damage. New health: {target.health}. Description: {description}"
+
+        message += f" New health: {target.health}. Description: {description}"
+        return message
 
     def _apply_heal(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         target.health += amount
+        target.health = min(100, target.health)
+
         return f"{source.name} heals {target.name} for {amount} health. New health: {target.health}. Description: {description}"
 
     def _apply_defend(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         source.defensive_bonus += amount
+
+        source.defensive_bonus = min(20, source.defensive_bonus)
         return f"{source.name} gained a defensive bonus against {target.name} of {amount}. Description: {description}"
 
     def _apply_move(self, source: GameEntity, target: GameEntity, amount: int, description: str):
