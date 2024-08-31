@@ -47,6 +47,8 @@ class Action(BaseModelWithXML):
 
     action_kind: ActionKind = Field(ActionKind.STRENGTH, description="The kind of action to perform, e.g., strength, dexterity, intelligence")
 
+    description: str = Field("", description="Detailed description of the action taken in past tense for the game history.")
+
 class ActionPhase(BaseModelWithXML):
     actions: List[Action] = Field(..., description="The list of actions to perform in the game scenario")
 
@@ -98,6 +100,12 @@ class ScenarioDescription(BaseModelWithXML):
     )
 
 class Scenario(BaseModelWithXML):
+    location_and_story_description: str = Field(
+        ..., description="""
+        Write a story like description of the current scenario and location that we can use to describe
+        the current state of the game to the user.
+        """
+    )
     player_characters: List[GameEntity] = Field(
         ..., description="The list of player characters in the scenario"
     )
@@ -154,13 +162,13 @@ class Scenario(BaseModelWithXML):
 
         # Perform the action based on the action type
         if action.type == ActionType.ATTACK:
-            message = self._apply_attack(source, target, amount)
+            message = self._apply_attack(source, target, amount, action.description)
         elif action.type == ActionType.HEAL:
-            message = self._apply_heal(source, target, amount)
+            message = self._apply_heal(source, target, amount, action.description)
         elif action.type == ActionType.DEFEND:
-            message = self._apply_defend(source, target, amount)
+            message = self._apply_defend(source, target, amount, action.description)
         elif action.type == ActionType.MOVE:
-            message = self._apply_move(source, target, amount)
+            message = self._apply_move(source, target, amount, action.description)
         else:
             print(f"Unknown action type: {action.type}")
         
@@ -168,7 +176,6 @@ class Scenario(BaseModelWithXML):
             return
 
         self.action_history.append(message)
-        print(message)
 
     def _find_entity_by_id(self, entity_id: int | None) -> GameEntity | None:
         if entity_id is None:
@@ -178,23 +185,21 @@ class Scenario(BaseModelWithXML):
                 return entity
         return None
 
-    def _apply_attack(self, source: GameEntity, target: GameEntity, amount: int):
+    def _apply_attack(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         target.health -= amount
-        return f"{source.name} attacks {target.name} for {amount} damage. New health: {target.health}"
+        return f"{source.name} attacks {target.name} for {amount} damage. New health: {target.health}. Description: {description}"
 
-
-    def _apply_heal(self, source: GameEntity, target: GameEntity, amount: int):
+    def _apply_heal(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         target.health += amount
-        return f"{source.name} heals {target.name} for {amount} health. New health: {target.health}"
+        return f"{source.name} heals {target.name} for {amount} health. New health: {target.health}. Description: {description}"
 
-    def _apply_defend(self, source: GameEntity, target: GameEntity, amount: int):
+    def _apply_defend(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         # TODO: Implement defense logic, e.g., increasing defense attribute or reducing incoming damage
-        return f"{source.name} waits in defense against an attack from {target.name}."
+        return f"{source.name} waits in defense against an attack from {target.name} with the amount {amount}. Description: {description}"
 
-    def _apply_move(self, source: GameEntity, target: GameEntity, amount: int):
+    def _apply_move(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         # TODO: Implement move logic, e.g., changing position or location in the game scenario
-        return f"{target.name} moves to a new position."
+        return f"{target.name} moves to a new position in the amount of {amount}. Description: {description}"
 
     def next_turn(self):
         self.current_turn = (self.current_turn + 1) % len(self.turn_order)
-        print(f"Next turn: {self.current_turn}. It's now {self._find_entity_by_id(self.turn_order[self.current_turn]).name}'s turn.")

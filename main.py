@@ -1,6 +1,7 @@
 from dotenv import load_dotenv
 import instructor
 from openai import OpenAI
+from rich import print
 
 from src.entities import Scenario, ActionPhase, ProposedAction, ScenarioDescription
 
@@ -85,56 +86,83 @@ def game_roll(scenario: Scenario, player_action: ProposedAction) -> ActionPhase:
 
   return action_phase_result
 
-def describe_scenario(current_entity_id: int, scenario: Scenario) -> ScenarioDescription:
+def describe_scenario(current_entity_id: int, scenario: Scenario, be_brief=False) -> ScenarioDescription:
     current_entity = scenario._find_entity_by_id(current_entity_id)
     current_entity_name = current_entity.name if current_entity else "Unknown Entity"
 
-    current_entity_description = f"""
+    is_monster_entity = any(current_entity_id == monster.entity_id for monster in scenario.monsters)
+
+    player_character_description = f"""
     Describe the current state of the game scenario for {current_entity_name} in a story format.
+    Make sure to include history of the actions taken so far, especially describing the most previous actions.
     The 'possible_actions' field should contain a list of possible actions that can be taken by 
     the current entity only based on the current entities 'abilities'.
+    Make sure to describe the current foes and friendlies of the entity.
     """
+
+    monster_description = f"""
+    Describe the current state of the game scenario in past tense explaining what {current_entity_name} just did.
+    Make sure to include history of the actions taken so far, especially describing the most previous actions.
+    Make sure to describe the current foes and friendlies of the entity.
+    """
+
+    messages=[
+        {
+            "role": "system",
+            "content": f"The current state of the scenario is:\n{scenario.to_xml()}",
+        },
+        {
+            "role": "system",
+            "content": player_character_description if not is_monster_entity else monster_description,
+        }
+    ]
+    if be_brief or is_monster_entity:
+        messages.append(
+            {
+                "role": "system",
+                "content": "Be brief in the description of the location as its already been explained once.",
+            }
+        )
+
+    if is_monster_entity:
+        last_action = scenario.action_history[-1] if scenario.action_history else "No actions taken yet."
+        messages.append(
+            {
+                "role": "system",
+                "content": f"Focus on describing last action taken by the monster and its effects on the game: `{last_action}`.\n",
+            }
+        )
     
     # Extract structured data from natural language
     scenario_description = client.chat.completions.create(
         model="gpt-4o-mini",
         response_model=ScenarioDescription,
-        messages=[
-            {
-                "role": "system",
-                "content": f"The current state of the scenario is:\n{scenario.to_xml()}",
-            },
-            {
-                "role": "system",
-                "content": current_entity_description,
-            }
-        ],
+        messages=messages,
     )
     return scenario_description
 
 # Step 5: Implement the Game Loop
 def game_loop():
-    print("Game started!")
+    print("[bold red]Game started![/bold red]")
     scenario = generate_scenario()
     scenario.initialize()
-    
+
+    turn_number = 0    
     while True:
-        #print(f"The current state of the game scenario is:\n{scenario.to_xml()}")
         current_entity_id = scenario.turn_order[scenario.current_turn]
         current_entity = scenario._find_entity_by_id(current_entity_id)
         
-        print(f"\nIt's {current_entity.name}'s turn!")
+        print(f"🎲 It's {current_entity.name}'s turn!")
         
         if current_entity in scenario.player_characters:
             
-            scenario_description = describe_scenario(current_entity_id, scenario)
-            print(scenario_description.story)
+            scenario_description = describe_scenario(current_entity_id, scenario, be_brief=turn_number > 0)
+            print(f"{scenario_description.story}\n")
 
             possible_actions = scenario_description.possible_actions + ["quit"]
-
-            action_input = input(f"Enter action ({', '.join(possible_actions)}): ").strip().lower()
+            action_input = input("What would you like to do?")
             if action_input == "quit":
-                print("Game over!")
+                print("[bold red]Game over![/bold red]")
                 break
 
             player_action = ProposedAction(
@@ -142,14 +170,13 @@ def game_loop():
                 source_entity_id=current_entity_id,
             )
             player_action_phase = game_roll(scenario, player_action)
-            print(player_action_phase.to_xml())
+            print(f"[blue]{player_action_phase.to_xml()}[/blue]\n\n")
             for action in player_action_phase.actions:
               scenario.apply_action(action)
 
         else:
             # Simple AI or automated actions for monsters
             # TODO: Implement a more sophisticated AI for monsters
-            print(f"{current_entity.name} attacks!")
             monster_action = ProposedAction(
                 player_input="Attack",
                 source_entity_id=current_entity_id,
@@ -157,6 +184,9 @@ def game_loop():
             monster_action_phase = game_roll(scenario, monster_action)
             for action in monster_action_phase.actions:
               scenario.apply_action(action)
+
+            monsters_scenario_description = describe_scenario(current_entity_id, scenario)
+            print(f"[red]{monsters_scenario_description.story}[/red]\n\n")
 
         # Check for win/loss conditions
         if all(monster.health <= 0 for monster in scenario.monsters):
@@ -166,6 +196,7 @@ def game_loop():
             print("All player characters defeated! Game over!")
             break
         
+        turn_number += 1
         scenario.next_turn()
 
 game_loop()
