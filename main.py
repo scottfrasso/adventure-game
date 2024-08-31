@@ -149,7 +149,7 @@ def describe_scenario(current_entity_id: int, scenario: Scenario, be_brief=True)
         messages.append(
             {
                 "role": "system",
-                "content": "Be brief in the description of the location as its already been explained once.",
+                "content": "Be as brief as possible. You do not need to describe the entire setting again as it has already been explained previously.",
             }
         )
 
@@ -207,34 +207,34 @@ def game_loop():
         print(f"🎲 It's {current_entity.name}'s turn!")
         
         if current_entity in scenario.player_characters:
-            
             scenario_description = describe_scenario(current_entity_id, scenario, be_brief=turn_number == 0)
             print(f"{scenario_description.story}\n")
+            while True:
+              action_input = input("What would you like to do? ")
+              if action_input == "quit":
+                  print("[bold red]Game over![/bold red]")
+                  break
 
-            action_input = input("What would you like to do? ")
-            if action_input == "quit":
-                print("[bold red]Game over![/bold red]")
-                break
+              player_action = ProposedAction(
+                  player_input=action_input,
+                  source_entity_id=current_entity_id,
+              )
+              # Figure out what the player wants to do
+              player_action_phase = game_roll(scenario, player_action)
+              #print(f"[blue]{player_action_phase.to_xml()}[/blue]\n\n")
 
-            player_action = ProposedAction(
-                player_input=action_input,
-                source_entity_id=current_entity_id,
-            )
-            # Figure out what the player wants to do
-            player_action_phase = game_roll(scenario, player_action)
-            #print(f"[blue]{player_action_phase.to_xml()}[/blue]\n\n")
+              if player_action_phase.is_question and player_action_phase.question_for_ai:
+                  question = player_action_phase.question_for_ai
+                  answer = answer_question(scenario, question)
+                  print(f"[green]{answer}[/green]\n\n")
+                  continue
 
-            if player_action_phase.is_question and player_action_phase.question_for_ai:
-                question = player_action_phase.question_for_ai
-                answer = answer_question(scenario, question)
-                print(f"[green]{answer}[/green]\n\n")
-                continue
+              for action in player_action_phase.actions:
+                scenario.apply_action(action)
 
-            for action in player_action_phase.actions:
-              scenario.apply_action(action)
-
-            action_effectiveness = describe_effectiveness_of_action(scenario, player_action_phase)
-            print(f"[green]{action_effectiveness}[/green]\n\n")
+              action_effectiveness = describe_effectiveness_of_action(scenario, player_action_phase)
+              print(f"[green]{action_effectiveness}[/green]\n\n")
+              break
 
         else:
             # Simple AI or automated actions for monsters

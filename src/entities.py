@@ -89,6 +89,10 @@ class GameEntity(BaseModelWithXML):
         description="Actions that the character or monster can take, these are derived from traits",
     )
 
+    defensive_bonus: int = Field(
+        0, ge=0, le=10, description="The bonus to defense when defending."
+    )
+
     def generate_abilities(self):
         # Add general abilities
         self.abilities.extend([Ability.ATTACK, Ability.DEFEND])
@@ -199,8 +203,8 @@ class Scenario(BaseModelWithXML):
         return f"{source.name} heals {target.name} for {amount} health. New health: {target.health}. Description: {description}"
 
     def _apply_defend(self, source: GameEntity, target: GameEntity, amount: int, description: str):
-        # TODO: Implement defense logic, e.g., increasing defense attribute or reducing incoming damage
-        return f"{source.name} waits in defense against an attack from {target.name} with the amount {amount}. Description: {description}"
+        source.defensive_bonus += amount
+        return f"{source.name} gained a defensive bonus against {target.name} of {amount}. Description: {description}"
 
     def _apply_move(self, source: GameEntity, target: GameEntity, amount: int, description: str):
         # TODO: Implement move logic, e.g., changing position or location in the game scenario
