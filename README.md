@@ -1,5 +1,7 @@
 # Adventure Game
 
+[See my blog post about this](https://blog.sc.ott.land/What-if-Dungeons-and-Dragons-had-a-game-engine-powered-by-AI/)
+
 Adventure Game is a text-based adventure game written in Python using the `instructor` library and OpenAI's GPT model. This project was developed in just a few hours due to limited free time.
 
 ![Example Usage](./example_usage.gif)
