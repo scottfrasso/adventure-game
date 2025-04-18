@@ -1,4 +1,5 @@
 FROM mcr.microsoft.com/devcontainers/python:1-3.12-bullseye
 
 ENV HTTP_TIMEOUT=600
-RUN pip install poetry
+RUN pip install uv
+ENV UV_LINK_MODE=copy
